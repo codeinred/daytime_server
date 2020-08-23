@@ -1,25 +1,60 @@
 #pragma once
 
+#include <conduit/async/callback.hpp>
+#include <conduit/mixin/resumable.hpp>
+
 #include <async/responses.hpp>
 
-#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio.hpp>
 
 #include <coroutine>
 
-
-namespace async {
+namespace conduit::async {
 using boost::asio::ip::tcp;
-struct ready_t {};
-struct suspend_t {};
+using boost::system::error_code;
+template <class...>
+struct resolve;
 
-class resolve : tcp::resolver {
-    using super = tcp::resolver;
-    public:
-    using tcp::resolver::resolver;
+template <class Protocol, class Executor>
+class resolve<boost::asio::ip::basic_resolver<Protocol, Executor>>
+  : mixin::Resumable<
+        resolve<boost::asio::ip::basic_resolver<Protocol, Executor>>> {
+    using super = mixin::Resumable<
+        resolve<boost::asio::ip::basic_resolver<Protocol, Executor>>>;
+    friend class mixin::Resumable<
+        resolve<boost::asio::ip::basic_resolver<Protocol, Executor>>>;
 
-    constexpr bool await_ready() { return false; }
-    void await_suspend(std::coroutine_handle<> caller) {
+    using resolver = boost::asio::ip::basic_resolver<Protocol, Executor>;
+    using endpoint_list = typename resolver::results_type;
+    resolver& r;
+    std::string_view host;
+    std::string_view service;
+    error_code const* ec_ptr;
+    endpoint_list endpoints;
+
+    auto get_handler(std::coroutine_handle<> h) {
+        return [this, caller = callback(h)](error_code const& ec,
+                                            endpoint_list r) mutable {
+            ec_ptr = &ec;
+            endpoints = std::move(r);
+            caller.resume();
+        };
+    }
+    void on_suspend(std::coroutine_handle<> h) {
+        r.async_resolve(host, service, get_handler(h));
     }
 
+   public:
+    resolve(resolver& r, std::string_view host, std::string_view service)
+      : r(r), host(host), service(service) {}
+
+    using super::await_ready;
+    using super::await_suspend;
+    auto await_resume() {
+        return resolve_result{*ec_ptr, std::move(endpoints)};
+    }
 };
-}
+
+template<class Protocol, class Executor>
+resolve(boost::asio::ip::basic_resolver<Protocol, Executor>&, std::string_view, std::string_view) -> resolve<boost::asio::ip::basic_resolver<Protocol, Executor>>;
+} // namespace conduit::async

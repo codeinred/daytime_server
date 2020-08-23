@@ -6,45 +6,42 @@
 
 #include <async/connect.hpp>
 #include <async/read_some.hpp>
+#include <async/resolve.hpp>
 
 #include <conduit/coroutine.hpp>
+#include <conduit/future.hpp>
 
 using boost::asio::ip::tcp;
 using namespace conduit;
 namespace asio = boost::asio;
 
-coroutine read_and_print(tcp::socket socket) {
+future<std::string> read(tcp::socket& socket) {
     std::array<char, 1024> buffer;
     std::string result;
-    while (true) {
-        auto [status, msg] = co_await async::read_some(socket, buffer);
+    while (auto response = co_await async::read_some(socket, buffer)) {
+        result += response.message;
 
-        if (status == boost::asio::error::eof) {
+        if (response.status) {
+            std::cerr << response.status.message() << '\n';
             break;
         }
-        if (status) {
-            std::cerr << "Read error: " << status;
-        }
-
-        result += msg;
     }
-    std::cout << result;
+    co_return result;
 }
 
 coroutine connect_and_read(asio::io_context& context, std::string host,
                            std::string service) {
     tcp::resolver resolver(context);
-    tcp::socket socket(context);
-    for (auto&& endpoint : resolver.resolve(host, service)) {
-        auto& status = co_await async::connect(endpoint, socket);
+    async::resolve_result r = co_await async::resolve(resolver, host, service);
 
-        if (!status) {
-            read_and_print(std::move(socket));
-            co_return;
-        }
-    }
-    std::cerr << "Could not resolve host\n";
+    tcp::socket socket(context);
+    auto&& [status, endpoint] = co_await async::connect(socket, r.endpoints);
+
+    std::string message = co_await read(socket);
+
+    std::cout << message << '\n';
 }
+
 int main(int argc, char* argv[]) {
     try {
         if (argc != 2) {
@@ -54,12 +51,9 @@ int main(int argc, char* argv[]) {
 
         boost::asio::io_context context;
 
-        auto run = [&]() { context.run(); };
+        connect_and_read(context, argv[1], "daytime");
 
-        for (int i = 0; i < 1000; i++)
-            connect_and_read(context, argv[1], "daytime");
-
-        run();
+        context.run();
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
     }

@@ -4,15 +4,26 @@
 #include <type_traits>
 
 #include <boost/system/error_code.hpp>
+#include <boost/asio//error.hpp>
 
-namespace boost::system {
-class error_code;
-}
 namespace conduit::async {
 using boost::system::error_code;
-struct status_result {
+template <class Endpoint>
+struct connect_result {
     error_code const& status;
+    Endpoint const& endpoint;
 };
+template <class Endpoint>
+connect_result(error_code const&, Endpoint const&) -> connect_result<Endpoint>;
+
+template <class EndpointList>
+struct resolve_result {
+    error_code const& status;
+    EndpointList endpoints;
+};
+template <class EndpointList>
+resolve_result(error_code const&, EndpointList) -> resolve_result<EndpointList>;
+
 struct write_result {
     error_code const& status;
     // Bytes written
@@ -21,6 +32,10 @@ struct write_result {
 struct read_result {
     error_code const& status;
     std::string_view message;
+
+    operator bool() const {
+        return status != boost::asio::error::eof;
+    }
 };
 template <class F, class T>
 concept value_or_error_visitor = requires(F func, T t, error_code const& c) {
@@ -55,6 +70,7 @@ class value_or_error {
         error_code const* error;
     };
     bool has_value_ = false;
+
    public:
     using reference = typename wrap<T>::reference;
     using const_reference = typename wrap<T>::const_reference;
@@ -63,15 +79,16 @@ class value_or_error {
     value_or_error(T const& value) : w(value), has_value_(true) {}
     value_or_error(T&& value) : w(std::move(value)), has_value_(true) {}
     value_or_error(error_code const& e) : error(&e), has_value_(false) {}
-    value_or_error(error_code const& e, T const& value) : error(&e), has_value_(false) {
-        if(!e) {
-            new(&w) wrap(value);
+    value_or_error(error_code const& e, T const& value)
+      : error(&e), has_value_(false) {
+        if (!e) {
+            new (&w) wrap(value);
         }
     }
-    
+
     auto& operator=(value_or_error const& other) {
-        if(has_value_) {
-            if(other.has_value) {
+        if (has_value_) {
+            if (other.has_value) {
                 w = other.w;
             } else {
                 w.~wrap();
@@ -79,8 +96,8 @@ class value_or_error {
                 has_value_ = false;
             }
         } else {
-            if(other.has_value) {
-                new(&w) wrap(other.w);
+            if (other.has_value) {
+                new (&w) wrap(other.w);
                 has_value_ = true;
             } else {
                 error = other.error;
@@ -89,8 +106,8 @@ class value_or_error {
         return *this;
     }
     auto& operator=(value_or_error&& other) {
-        if(has_value_) {
-            if(other.has_value) {
+        if (has_value_) {
+            if (other.has_value) {
                 w = std::move(other.w);
             } else {
                 w.~wrap();
@@ -98,8 +115,8 @@ class value_or_error {
                 has_value_ = false;
             }
         } else {
-            if(other.has_value) {
-                new(&w) wrap(std::move(other.w));
+            if (other.has_value) {
+                new (&w) wrap(std::move(other.w));
                 has_value_ = true;
             } else {
                 error = other.error;
@@ -111,39 +128,35 @@ class value_or_error {
         return has_value_ ? func(w.get()) : func(*error);
     }
     error_code const& get_error() const {
-        if(has_value_) {
+        if (has_value_) {
             return ok;
         }
         return *error;
     }
-    bool has_value() const noexcept {
-        return has_value_;
-    }
-    operator bool() const noexcept {
-        return has_value_;
-    }
+    bool has_value() const noexcept { return has_value_; }
+    operator bool() const noexcept { return has_value_; }
     decltype(auto) value() & {
-        if(!has_value_) {
+        if (!has_value_) {
             throw *error;
         }
         return w.get();
     }
     decltype(auto) value() const& {
-        if(!has_value_) {
+        if (!has_value_) {
             throw *error;
         }
         return w.get();
     }
     decltype(auto) value() && {
-        if(!has_value_) {
+        if (!has_value_) {
             throw *error;
         }
-        return std::move(w).get(); 
+        return std::move(w).get();
     }
     ~value_or_error() {
-        if(has_value_) {
+        if (has_value_) {
             w.~wrap();
         }
     }
 };
-} // namespace async
+} // namespace conduit::async
