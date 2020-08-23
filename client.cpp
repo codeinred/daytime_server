@@ -5,7 +5,7 @@
 #include <string>
 
 #include <async/connect.hpp>
-#include <async/read_some.hpp>
+#include <async/read.hpp>
 #include <async/resolve.hpp>
 
 #include <conduit/coroutine.hpp>
@@ -15,21 +15,7 @@ using boost::asio::ip::tcp;
 using namespace conduit;
 namespace asio = boost::asio;
 
-future<std::string> read(tcp::socket& socket) {
-    std::array<char, 1024> buffer;
-    std::string result;
-    while (auto response = co_await async::read_some(socket, buffer)) {
-        result += response.message;
-
-        if (response.status) {
-            std::cerr << response.status.message() << '\n';
-            break;
-        }
-    }
-    co_return result;
-}
-
-coroutine connect_and_read(asio::io_context& context, std::string host,
+coroutine get_daytime(asio::io_context& context, std::string host,
                            std::string service) {
     tcp::resolver resolver(context);
     async::resolve_result r = co_await async::resolve(resolver, host, service);
@@ -37,9 +23,9 @@ coroutine connect_and_read(asio::io_context& context, std::string host,
     tcp::socket socket(context);
     auto&& [status, endpoint] = co_await async::connect(socket, r.endpoints);
 
-    std::string message = co_await read(socket);
+    std::string message = co_await async::read(socket);
 
-    std::cout << message << '\n';
+    std::cout << message;
 }
 
 int main(int argc, char* argv[]) {
@@ -51,7 +37,7 @@ int main(int argc, char* argv[]) {
 
         boost::asio::io_context context;
 
-        connect_and_read(context, argv[1], "daytime");
+        get_daytime(context, argv[1], "daytime");
 
         context.run();
     } catch (std::exception& e) {

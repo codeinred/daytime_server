@@ -1,5 +1,6 @@
 #pragma once
 #include <conduit/mixin/resumable.hpp>
+#include <conduit/future.hpp>
 
 #include <async/responses.hpp>
 
@@ -52,4 +53,18 @@ class read_some : public mixin::Resumable<read_some> {
         return {*status, std::string_view(buffer.data(), buffer.size())};
     }
 };
+
+future<std::string> read(tcp::socket& socket) {
+    std::array<char, 1024> buffer;
+    std::string result;
+    while (auto response = co_await async::read_some(socket, buffer)) {
+        result += response.message;
+
+        if (response.status) {
+            std::cerr << response.status.message() << '\n';
+            break;
+        }
+    }
+    co_return result;
+}
 } // namespace conduit::async
