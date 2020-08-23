@@ -23,7 +23,8 @@ coroutine get_daytime(asio::io_context& context, std::string host,
     tcp::socket socket(context);
     auto&& [status, endpoint] = co_await async::connect(socket, r.endpoints);
 
-    std::string message = co_await async::read(socket);
+    auto get_msg = async::read(socket);
+    std::string message = co_await get_msg;
 
     std::cout << message;
 }
