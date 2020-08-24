@@ -1,3 +1,4 @@
 [submodule "conduit"]
 	path = conduit
 	url = https://github.com/functionalperez/conduit
+	branch = dev

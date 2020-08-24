@@ -4,9 +4,9 @@
 
 #include <string>
 
-#include <conduit/net/connect.hpp>
-#include <conduit/net/read.hpp>
-#include <conduit/net/resolve.hpp>
+#include <conduit/io/connect.hpp>
+#include <conduit/io/read.hpp>
+#include <conduit/io/resolve.hpp>
 
 #include <conduit/coroutine.hpp>
 #include <conduit/future.hpp>
@@ -16,14 +16,14 @@ using namespace conduit;
 namespace asio = boost::asio;
 
 coroutine get_daytime(asio::io_context& context, std::string host,
-                           std::string service) {
+                      std::string service) {
     tcp::resolver resolver(context);
-    async::resolve_result r = co_await async::resolve(resolver, host, service);
+    io::resolve_result r = co_await io::resolve(resolver, host, service);
 
     tcp::socket socket(context);
-    co_await async::connect(socket, r.endpoints);
+    co_await io::connect(socket, r.endpoints);
 
-    auto get_msg = async::read(socket);
+    auto get_msg = io::read(socket);
     std::string message = co_await get_msg;
 
     std::cout << message;
