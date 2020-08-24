@@ -1,5 +1,5 @@
-#include <async/accept.hpp>
-#include <async/write.hpp>
+#include <conduit/net/accept.hpp>
+#include <conduit/net/write.hpp>
 #include <conduit/coroutine.hpp>
 
 #include <iostream>
@@ -16,19 +16,15 @@ std::string make_daytime_string() {
     return ctime(&now);
 }
 
-coroutine start_write(tcp::socket socket, std::string message) {
-    co_await async::write(socket, message);
-}
-
 coroutine start_server(asio::io_context& context, tcp::acceptor& acceptor) {
-    while (true) {
+    for (int i = 0; i < 10; i++) {
         auto socket = tcp::socket(context);
-        error_code const& status = co_await async::accept(acceptor, socket);
+        auto status = co_await async::accept(acceptor, socket);
 
-        if (!status)
-            start_write(std::move(socket), make_daytime_string());
-        else
+        if (status.bad())
             std::cerr << "Server error: " << status.message() << '\n';
+
+        async::start_write(std::move(socket), make_daytime_string());
     }
 }
 

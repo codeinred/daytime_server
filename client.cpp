@@ -4,9 +4,9 @@
 
 #include <string>
 
-#include <async/connect.hpp>
-#include <async/read.hpp>
-#include <async/resolve.hpp>
+#include <conduit/net/connect.hpp>
+#include <conduit/net/read.hpp>
+#include <conduit/net/resolve.hpp>
 
 #include <conduit/coroutine.hpp>
 #include <conduit/future.hpp>
@@ -21,7 +21,7 @@ coroutine get_daytime(asio::io_context& context, std::string host,
     async::resolve_result r = co_await async::resolve(resolver, host, service);
 
     tcp::socket socket(context);
-    auto&& [status, endpoint] = co_await async::connect(socket, r.endpoints);
+    co_await async::connect(socket, r.endpoints);
 
     auto get_msg = async::read(socket);
     std::string message = co_await get_msg;
