@@ -63,12 +63,12 @@ int main(int argc, char** argv) {
 
 
         std::cout << "Type 'halt' to halt the server or press Crtl+D." << std::endl;
-        std::string cin_buffer(1024, '\0');
+        std::string line;
         // Wait until EOF from std::cin
         while(std::cin) {
             std::cout << "> " << std::flush;
-            std::getline(std::cin, cin_buffer);
-            if(cin_buffer == "halt")
+            std::getline(std::cin, line);
+            if(line == "halt")
                 break;
         }
         std::cerr << "Stopping" << '\n';
