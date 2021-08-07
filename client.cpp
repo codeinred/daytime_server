@@ -24,6 +24,7 @@ coroutine read_and_print(tcp::socket socket) {
         }
         if (status) {
             std::cerr << "Read error: " << status;
+            break;
         }
 
         result += msg;
@@ -38,11 +39,17 @@ coroutine connect_and_read(asio::io_context& context, std::string host,
     for (auto&& endpoint : resolver.resolve(host, service)) {
         auto& status = co_await async::connect(endpoint, socket);
 
-        if (!status) {
+        if (status) {
+            // If the connection to that endpoint failed,
+            // try the next endpoint
+            continue;
+        } else {
+            // Otherwise, read and print from the now-connected socket
             read_and_print(std::move(socket));
             co_return;
         }
     }
+    // If none of the endpoints connected, print error
     std::cerr << "Could not resolve host\n";
 }
 int main(int argc, char* argv[]) {
