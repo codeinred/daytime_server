@@ -16,18 +16,34 @@ std::string make_daytime_string() {
     return ctime(&now);
 }
 
+int get_thread_num() {
+    static int thread_num = 0;
+    static thread_local int thread_number = thread_num++;
+    return thread_number;
+}
+
 static std::atomic_int messages = 0;
 coroutine do_write(tcp::socket socket, std::string message) {
+    int message_num = ++messages;
+    std::cout << ("Beginning write of message no. " +
+                  std::to_string(message_num) + " on thread " +
+                  std::to_string(get_thread_num()) + '\n');
     auto&& [status, write_size] = co_await async::write(socket, message);
 
     if (status) {
         std::cerr << ("Write error: " + status.message() + '\n');
         co_return;
     }
+    std::cout << ("Completing write of message no. " +
+                  std::to_string(message_num) + " on thread " +
+                  std::to_string(get_thread_num()) + '\n');
 }
 
 coroutine start_server(asio::io_context& context, tcp::acceptor& acceptor) {
     while (messages < 1000) {
+        std::cout << ("Waiting for incoming connection on " +
+                      std::to_string(get_thread_num()) + '\n');
+
         // Accept an incoming connection
         auto socket = tcp::socket(context);
         auto& status = co_await async::accept(acceptor, socket);
@@ -50,13 +66,17 @@ int main(int argc, char** argv) {
         auto acceptor = tcp::acceptor(context, endpoint);
 
         int num_threads = 8;
-        std::vector<std::jthread> threads(num_threads);
+        std::vector<std::thread> threads(num_threads);
 
-        for (auto& t : threads) {
-            t = std::jthread([&] {
+        for (std::thread& t : threads) {
+            t = std::thread([&] {
                 start_server(context, acceptor);
                 context.run();
             });
+        }
+
+        for (auto& t : threads) {
+            t.join();
         }
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
