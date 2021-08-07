@@ -5,19 +5,20 @@ This is a simple implementation of a daytime server using boost::asio and corout
 ## Building:
 
 ```
-git clone https://github.com/functionalperez/daytime_server
-cd daytime_server
-mkdir build && cd build
+git clone https://github.com/codeinred/daytime_server --recursive
 
-cmake .. -DCMAKE_CXX_COMPILER=clang++ && cmake --build .
+chmod +x daytime_server/build.sh
+
+daytime_server/build.sh
 ```
 
 ## Running:
-Server: 
+Server:
 ```
-sudo ./server # Daytime servers require sudo to access socket 13
+# Daytime servers require sudo to access socket 13
+sudo daytime_server/build/server
 ```
 Client:
 ```
-./client `hostname -I`
+daytime_server/build/client $(hostname -i)
 ```
