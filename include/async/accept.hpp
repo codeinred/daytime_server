@@ -1,6 +1,5 @@
 #pragma once
 #include <conduit/async/callback.hpp>
-#include <conduit/mixin/resumable.hpp>
 
 #include <async/responses.hpp>
 
@@ -11,7 +10,7 @@
 namespace conduit::async {
 using boost::asio::ip::tcp;
 
-class accept : public mixin::Resumable<accept> {
+class accept {
     tcp::acceptor* acceptor = nullptr;
     tcp::socket* socket = nullptr;
     error_code const* status = nullptr;
@@ -22,10 +21,6 @@ class accept : public mixin::Resumable<accept> {
             caller.resume();
         };
     }
-    void on_suspend(std::coroutine_handle<> h) {
-        acceptor->async_accept(*socket, get_handler(h));
-    }
-    friend class mixin::Resumable<accept>;
 
    public:
     accept() = default;
@@ -33,7 +28,12 @@ class accept : public mixin::Resumable<accept> {
     accept(tcp::acceptor& acceptor, tcp::socket& socket)
       : acceptor(&acceptor), socket(&socket) {}
 
+    constexpr bool await_ready() const noexcept {
+        return false;
+    }
+    void await_suspend(std::coroutine_handle<> h) {
+        acceptor->async_accept(*socket, get_handler(h));
+    }
     error_code const& await_resume() noexcept { return *status; }
-    // status_result await_resume() noexcept { return {*status}; }
 };
 } // namespace conduit::async

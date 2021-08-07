@@ -1,5 +1,4 @@
 #pragma once
-#include <conduit/mixin/resumable.hpp>
 
 #include <async/responses.hpp>
 
@@ -9,16 +8,18 @@
 #include <boost/system/error_code.hpp>
 
 #include <array>
-#include <coroutine>
 #include <span>
 #include <string>
 #include <string_view>
+
+#include <conduit/util/stdlib_coroutine.hpp>
+#include <conduit/async/callback.hpp>
 
 namespace conduit::async {
 using boost::asio::ip::tcp;
 namespace asio = boost::asio;
 
-class read_some : public mixin::Resumable<read_some> {
+class read_some {
     template <size_t N>
     using char_buff = char[N];
 
@@ -27,7 +28,6 @@ class read_some : public mixin::Resumable<read_some> {
 
     std::span<char> buffer;
 
-    friend class mixin::Resumable<read_some>;
 
     auto get_handler(std::coroutine_handle<> h) {
         return [this, caller = async::callback{h}](error_code const& response,
@@ -37,10 +37,7 @@ class read_some : public mixin::Resumable<read_some> {
             caller.resume();
         };
     }
-    void on_suspend(std::coroutine_handle<> h) {
-        socket->async_read_some(
-            asio::mutable_buffer(buffer.data(), buffer.size()), get_handler(h));
-    }
+
 
    public:
     read_some() = default;
@@ -48,6 +45,13 @@ class read_some : public mixin::Resumable<read_some> {
     read_some(tcp::socket& socket, std::span<char> buffer) noexcept
       : socket(&socket), buffer(buffer) {}
 
+    constexpr bool await_ready() const noexcept {
+        return false;
+    }
+    void await_suspend(std::coroutine_handle<> h) {
+        socket->async_read_some(
+            asio::mutable_buffer(buffer.data(), buffer.size()), get_handler(h));
+    }
     read_result await_resume() {
         return {*status, std::string_view(buffer.data(), buffer.size())};
     }
