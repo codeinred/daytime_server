@@ -49,6 +49,9 @@ int main(int argc, char** argv) {
         auto acceptor = tcp::acceptor(context, endpoint);
 
         int num_threads = 8;
+
+        // jthreads automatically join on destruction
+        // so they're preferrable to std::thread
         std::vector<std::jthread> threads(num_threads);
 
         for (auto& t : threads) {
