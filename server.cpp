@@ -16,7 +16,6 @@ std::string make_daytime_string() {
     return ctime(&now);
 }
 
-static std::atomic_int messages = 0;
 coroutine do_write(tcp::socket socket, std::string message) {
     auto&& [status, write_size] = co_await async::write(socket, message);
 
@@ -27,7 +26,7 @@ coroutine do_write(tcp::socket socket, std::string message) {
 }
 
 coroutine start_server(asio::io_context& context, tcp::acceptor& acceptor) {
-    while (messages < 1000) {
+    while (true) {
         // Accept an incoming connection
         auto socket = tcp::socket(context);
         auto& status = co_await async::accept(acceptor, socket);
@@ -58,8 +57,24 @@ int main(int argc, char** argv) {
                 context.run();
             });
         }
+
+
+        std::cout << "Type 'halt' to halt the server or press Crtl+D." << std::endl;
+        std::string cin_buffer(1024, '\0');
+        // Wait until EOF from std::cin
+        while(std::cin) {
+            std::cout << "> " << std::flush;
+            std::getline(std::cin, cin_buffer);
+            if(cin_buffer == "halt")
+                break;
+        }
+        std::cerr << "Stopping" << '\n';
+        // Cancel all coroutines
+        context.stop();
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
+        std::cerr << "A daytime server runs on port 13, so it needs to be run with sudo. Try:\n";
+        std::cerr << "\n  $ sudo " << argv[0] << '\n';
     }
 
     return 0;
